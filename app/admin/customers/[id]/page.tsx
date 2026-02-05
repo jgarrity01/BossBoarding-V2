@@ -399,7 +399,7 @@ const handleUpdateMachine = () => {
   const handleCloneMachines = () => {
     if (!customer || !cloneMachine) return;
     const machineType = cloneMachine.type;
-    const baseNumber = machineType === 'washer' ? 1 : 100;
+    const baseNumber = machineType === 'washer' ? 1 : 101;
     const maxNumber = machineType === 'washer' ? 99 : 199;
     const usedNumbers = new Set(customer.machines.filter(m => m.type === machineType).map(m => m.machineNumber));
     
@@ -2348,7 +2348,7 @@ const handleDeleteNote = () => {
               <div>
                 <CardTitle className="text-foreground">Machine Inventory</CardTitle>
                 <CardDescription>
-                  Washers: 1-99 | Dryers: 100-199
+                  Washers: 1-99 | Dryers: 101-199
                 </CardDescription>
               </div>
               <Button onClick={() => setIsAddMachineOpen(true)}>
@@ -2482,7 +2482,7 @@ const handleDeleteNote = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="washer">Washer (1-99)</SelectItem>
-                        <SelectItem value="dryer">Dryer (100-199)</SelectItem>
+                        <SelectItem value="dryer">Dryer (101-199)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

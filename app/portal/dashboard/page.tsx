@@ -1170,7 +1170,7 @@ export default function PortalDashboardPage() {
                       <WashingMachine className="h-5 w-5" />
                       Machine Inventory
                     </CardTitle>
-                    <CardDescription>Washers: 1-99 | Dryers: 100-199</CardDescription>
+                    <CardDescription>Washers: 1-99 | Dryers: 101-199</CardDescription>
                   </div>
                   <Button onClick={() => setIsAddMachineOpen(true)}>
                     <Plus className="mr-2 h-4 w-4" />
@@ -1696,7 +1696,7 @@ export default function PortalDashboardPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="washer">Washer (1-99)</SelectItem>
-                  <SelectItem value="dryer">Dryer (100-199)</SelectItem>
+                  <SelectItem value="dryer">Dryer (101-199)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
