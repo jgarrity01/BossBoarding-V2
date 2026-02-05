@@ -96,10 +96,12 @@ export async function GET(
     customer.machines = (machinesResult.data || []).map(m => ({
       id: m.id,
       machineNumber: parseInt(m.machine_id, 10) || 0,
-      type: m.type,
+      type: m.type as 'washer' | 'dryer',
       make: m.manufacturer || '',
       model: m.model || '',
       serialNumber: m.serial_number || '',
+      coinsAccepted: 'quarter' as const,
+      pricing: { cold: 5.00, warm: 5.50, hot: 6.00, standard: 0.25 },
       capacity: m.capacity,
       price: m.price,
       status: m.status,
@@ -160,9 +162,14 @@ export async function PATCH(
     
     // Handle machines - sync to machines table
     // Washers: 1-99, Dryers: 101-199
-    if (updates.machines && updates.machines.length > 0) {
-      // Delete existing machines for this customer and re-insert
+    if (updates.machines !== undefined) {
+      // Delete existing machines for this customer first (handles both updates and full deletions)
       await supabase.from('machines').delete().eq('customer_id', id)
+      
+      // Only insert if there are machines to add
+      if (updates.machines.length === 0) {
+        // All machines deleted - nothing more to do
+      } else {
       
       // Separate machines by type and assign proper numbering
       const washers = updates.machines.filter((m: { type?: string }) => 
@@ -181,46 +188,53 @@ export async function PATCH(
       let otherIndex = 201
       
       for (const machine of washers) {
-        const machineNum = machine.machineId || washerIndex++
+        const machineNum = machine.machineNumber || machine.machineId || washerIndex++
         await supabase.from('machines').insert({
           customer_id: id,
           machine_id: String(machineNum),
           type: 'washer',
+          manufacturer: machine.make || machine.manufacturer || null,
           model: machine.model || null,
           serial_number: machine.serialNumber || null,
-          location_in_store: machine.location || null,
+          location_in_store: machine.locationInStore || machine.location || null,
           price: machine.price || null,
           status: machine.status || 'active',
+          capacity: machine.capacity || null,
         })
       }
       
       for (const machine of dryers) {
-        const machineNum = machine.machineId || dryerIndex++
+        const machineNum = machine.machineNumber || machine.machineId || dryerIndex++
         await supabase.from('machines').insert({
           customer_id: id,
           machine_id: String(machineNum),
           type: 'dryer',
+          manufacturer: machine.make || machine.manufacturer || null,
           model: machine.model || null,
           serial_number: machine.serialNumber || null,
-          location_in_store: machine.location || null,
+          location_in_store: machine.locationInStore || machine.location || null,
           price: machine.price || null,
           status: machine.status || 'active',
+          capacity: machine.capacity || null,
         })
       }
       
       for (const machine of others) {
-        const machineNum = machine.machineId || otherIndex++
+        const machineNum = machine.machineNumber || machine.machineId || otherIndex++
         await supabase.from('machines').insert({
           customer_id: id,
           machine_id: String(machineNum),
           type: machine.type || 'other',
+          manufacturer: machine.make || machine.manufacturer || null,
           model: machine.model || null,
           serial_number: machine.serialNumber || null,
-          location_in_store: machine.location || null,
+          location_in_store: machine.locationInStore || machine.location || null,
           price: machine.price || null,
           status: machine.status || 'active',
+          capacity: machine.capacity || null,
         })
       }
+      } // Close the else block for machines.length > 0
     }
     
     // Remove employees and machines from updates (handled separately)

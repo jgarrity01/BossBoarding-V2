@@ -1578,10 +1578,15 @@ const handleDeleteNote = () => {
                     <div className="space-y-2 text-sm">
                       {(() => {
                         const totalDeal = customer.dealAmount || 0;
+                        const cogs = customer.cogs || 0;
+                        const netDealAmount = totalDeal - cogs; // Commission is based on Net Deal Amount
                         const commissionRate = customer.commissionRate || 10;
-                        const totalCommission = totalDeal * commissionRate / 100;
+                        const totalCommission = netDealAmount * commissionRate / 100;
                         const paidToDate = customer.paidToDateAmount || 0;
-                        const commissionOnPaid = paidToDate * commissionRate / 100;
+                        // Calculate what percentage of the deal has been paid
+                        const paidPercentage = totalDeal > 0 ? paidToDate / totalDeal : 0;
+                        // Commission on paid is proportional to the net deal commission
+                        const commissionOnPaid = totalCommission * paidPercentage;
                         const commissionPaid = customer.commissionPaidAmount || 0;
                         const commissionOwedNow = commissionOnPaid - commissionPaid;
                         const remainingDeal = totalDeal - paidToDate;
@@ -1595,8 +1600,20 @@ const handleDeleteNote = () => {
                               <span>Total Deal Amount:</span>
                               <span className="font-medium">${totalDeal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </div>
+                            {cogs > 0 && (
+                              <>
+                                <div className="flex justify-between text-muted-foreground">
+                                  <span>Less COGS:</span>
+                                  <span>-${cogs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="flex justify-between font-medium">
+                                  <span>Net Deal Amount (Commission Basis):</span>
+                                  <span>${netDealAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                </div>
+                              </>
+                            )}
                             <div className="flex justify-between">
-                              <span>Total Commission ({commissionRate}%):</span>
+                              <span>Total Commission ({commissionRate}% of {cogs > 0 ? 'Net' : 'Deal'}):</span>
                               <span className="font-medium">${totalCommission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </div>
                             <div className="border-t pt-2 mt-2">
