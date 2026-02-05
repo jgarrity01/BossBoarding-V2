@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useAdminStore } from '@/lib/store'
+import { useData } from '@/lib/data-provider'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -14,13 +15,15 @@ import {
   ArrowRight,
   WashingMachine,
   Building2,
-  CircleDashed
+  CircleDashed,
+  Loader2
 } from 'lucide-react'
 import { ONBOARDING_STAGES, getDefaultTaskStatuses, calculateProgress } from '@/lib/onboarding-config'
 import { StageProgressBar } from '@/components/onboarding/stage-progress'
 
 export default function AdminDashboard() {
-  const { customers, setStatusFilter } = useAdminStore()
+  const { setStatusFilter } = useAdminStore()
+  const { customers, isLoading } = useData()
 
   // Calculate customer status metrics
   const totalCustomers = customers.length
@@ -49,8 +52,8 @@ export default function AdminDashboard() {
     })
   })
 
-  const totalMachines = customers.reduce((acc, c) => acc + c.machines.length, 0)
-  const totalEmployees = customers.reduce((acc, c) => acc + c.employees.length, 0)
+  const totalMachines = customers.reduce((acc, c) => acc + (c.machines?.length || 0), 0)
+  const totalEmployees = customers.reduce((acc, c) => acc + (c.employees?.length || 0), 0)
   
   const completionRate = totalCustomers > 0 
     ? Math.round((completed / totalCustomers) * 100) 
@@ -75,6 +78,17 @@ export default function AdminDashboard() {
 
   const handleStatusClick = (status: 'not_started' | 'in_progress' | 'needs_review' | 'complete' | 'all') => {
     setStatusFilter(status)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
