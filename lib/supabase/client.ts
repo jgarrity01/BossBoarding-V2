@@ -33,7 +33,34 @@ export function createAdminClient() {
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Supabase URL and Service Role Key are required for admin operations.')
+    // Return a mock client that returns empty results - prevents crashes when env vars are missing
+    const mockQuery = () => ({
+      select: () => mockQuery(),
+      insert: () => mockQuery(),
+      update: () => mockQuery(),
+      delete: () => mockQuery(),
+      eq: () => mockQuery(),
+      in: () => mockQuery(),
+      order: () => mockQuery(),
+      single: () => mockQuery(),
+      maybeSingle: () => mockQuery(),
+      then: (resolve: (value: { data: null; error: { message: string } }) => void) => {
+        resolve({ data: null, error: { message: 'Supabase admin not configured' } })
+      },
+      data: null,
+      error: { message: 'Supabase admin not configured' },
+    })
+    
+    return {
+      auth: {
+        getUser: async () => ({ data: { user: null }, error: { message: 'Supabase admin not configured' } }),
+        admin: {
+          createUser: async () => ({ data: { user: null }, error: { message: 'Supabase admin not configured' } }),
+          deleteUser: async () => ({ data: { user: null }, error: { message: 'Supabase admin not configured' } }),
+        },
+      },
+      from: () => mockQuery(),
+    } as unknown as ReturnType<typeof createSupabaseClient>
   }
 
   return createSupabaseClient(supabaseUrl, supabaseServiceKey, {
