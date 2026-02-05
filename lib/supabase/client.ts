@@ -2,10 +2,29 @@ import { createBrowserClient } from '@supabase/ssr'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 export function createClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  
+  if (!url || !key) {
+    // Return a mock client that throws on use - this prevents crashes during SSR
+    return {
+      auth: {
+        getUser: async () => ({ data: { user: null }, error: { message: 'Supabase not configured' } }),
+        getSession: async () => ({ data: { session: null }, error: { message: 'Supabase not configured' } }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+        signInWithPassword: async () => ({ data: { user: null, session: null }, error: { message: 'Supabase not configured' } }),
+        signOut: async () => ({ error: null }),
+      },
+      from: () => ({
+        select: () => ({ data: null, error: { message: 'Supabase not configured' } }),
+        insert: () => ({ data: null, error: { message: 'Supabase not configured' } }),
+        update: () => ({ data: null, error: { message: 'Supabase not configured' } }),
+        delete: () => ({ data: null, error: { message: 'Supabase not configured' } }),
+      }),
+    } as unknown as ReturnType<typeof createBrowserClient>
+  }
+  
+  return createBrowserClient(url, key)
 }
 
 // Admin client with service role key - bypasses RLS

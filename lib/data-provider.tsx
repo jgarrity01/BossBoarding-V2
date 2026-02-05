@@ -29,10 +29,11 @@ const DataContext = createContext<DataContextType | null>(null)
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [isSupabaseConnected, setIsSupabaseConnected] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [isMounted, setIsMounted] = useState(false)
   const [supabaseCustomersList, setSupabaseCustomersList] = useState<Customer[]>([])
   const initRef = useRef(false)
   
-  // Get store functions directly
+  // Get store functions directly - these are safe to call even before hydration
   const storeCustomers = useAdminStore((state) => state.customers)
   const storeAddCustomer = useAdminStore((state) => state.addCustomer)
   const storeUpdateCustomer = useAdminStore((state) => state.updateCustomer)
@@ -41,6 +42,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const storeAddNote = useAdminStore((state) => state.addCustomerNote)
   const storeUpdateNote = useAdminStore((state) => state.updateCustomerNote)
   const storeDeleteNote = useAdminStore((state) => state.deleteCustomerNote)
+  
+  // Handle hydration
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   // Initialize on mount
   useEffect(() => {
@@ -212,6 +218,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       storeDeleteNote(customerId, noteId)
     }
   }, [isSupabaseConnected, storeDeleteNote, refresh])
+  
+  // Don't render children until mounted to avoid hydration mismatch
+  if (!isMounted) {
+    return (
+      <DataContext.Provider value={{
+        isSupabaseConnected: false,
+        isLoading: true,
+        customers: [],
+        getCustomer: () => undefined,
+        getCustomerByToken: () => undefined,
+        addCustomer: async () => null,
+        updateCustomer: async () => {},
+        deleteCustomer: async () => {},
+        addNote: async () => {},
+        updateNote: async () => {},
+        deleteNote: async () => {},
+        refresh: async () => {},
+      }}>
+        {children}
+      </DataContext.Provider>
+    )
+  }
   
   return (
     <DataContext.Provider value={{
