@@ -205,6 +205,9 @@ interface AdminStore {
   // Customer section actions
   updateCustomerSection: (customerId: string, sectionId: string, data: Partial<OnboardingSection>) => void
   
+  // Update local store from database WITHOUT syncing back (prevents loops)
+  setCustomerFromDatabase: (id: string, data: Partial<Customer>) => void
+  
   // Machine management
   addCustomerMachine: (customerId: string, machine: Machine) => void
   updateCustomerMachine: (customerId: string, machineId: string, data: Partial<Machine>) => void
@@ -715,6 +718,15 @@ export const useAdminStore = create<AdminStore>()(
     }))
     // Sync new customer to Supabase - use full customer data for insert
     syncCustomerToSupabase(customer.id, customer)
+  },
+  
+  // Update local store from database - NO sync back to avoid feedback loops
+  setCustomerFromDatabase: (id, data) => {
+    set((state) => ({
+      customers: state.customers.map((c) =>
+        c.id === id ? { ...c, ...data } : c
+      )
+    }))
   },
   
   updateCustomer: (id, data) => {

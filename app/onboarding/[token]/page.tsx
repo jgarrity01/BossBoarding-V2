@@ -148,21 +148,24 @@ export default function TokenOnboardingPage() {
 
   useEffect(() => {
     async function loadCustomer() {
-      // Try to find customer by token in local store first
-      let foundCustomer = getCustomerByToken(token)
+      // ALWAYS fetch from Supabase first - database is the source of truth
+      // This ensures admin changes (deletes, updates) are always respected
+      let foundCustomer = await getSupabaseCustomerByToken(token)
       
-      // If not found locally, try Supabase
+      // Only fall back to local store if Supabase fetch fails (e.g., network error)
       if (!foundCustomer) {
-        const supabaseCustomer = await getSupabaseCustomerByToken(token)
-        if (supabaseCustomer) {
-          foundCustomer = supabaseCustomer
-        }
+        foundCustomer = getCustomerByToken(token)
       }
       
       if (!foundCustomer) {
         setError('Invalid or expired onboarding link. Please contact your administrator.')
         setIsLoading(false)
         return
+      }
+      
+      // Update local store with fresh data from database
+      if (foundCustomer.id) {
+        updateCustomer(foundCustomer.id, foundCustomer)
       }
 
       // Check if already completed
@@ -183,6 +186,19 @@ export default function TokenOnboardingPage() {
         // Calculate highest step reached (either from saved data or current step)
         const savedHighestStep = (savedFormData?.highestStepReached as number) ?? savedData?.currentStep ?? 0
         
+        // IMPORTANT: Database records (foundCustomer.machines/employees) are the ONLY source of truth
+        // NEVER use savedFormData for machines/employees - always use database records
+        // This ensures admin deletions/updates are always respected (even when deleting ALL machines)
+        // Also ensure all machines have required fields with defaults to prevent client-side errors
+        const rawMachinesSource = foundCustomer.machines || []
+        const machinesSource = rawMachinesSource.map(m => ({
+          ...m,
+          type: m.type || 'washer' as const,
+          coinsAccepted: m.coinsAccepted || 'quarter' as const,
+          pricing: m.pricing || { cold: 5.00, warm: 5.50, hot: 6.00, standard: 0.25 },
+        }))
+        const employeesSource = foundCustomer.employees || []
+        
         initializeFromCustomer(foundCustomer.id, token, {
           businessName: (savedFormData?.businessName as string) || foundCustomer.businessName,
           ownerName: (savedFormData?.ownerName as string) || foundCustomer.ownerName,
@@ -197,11 +213,13 @@ export default function TokenOnboardingPage() {
           locationCity: (savedFormData?.locationCity as string) || foundCustomer.locationInfo?.city || '',
           locationState: (savedFormData?.locationState as string) || foundCustomer.locationInfo?.state || '',
           locationZip: (savedFormData?.locationZip as string) || foundCustomer.locationInfo?.zipCode || '',
-          // Restore other saved form data
-          ...(savedFormData || {}),
-          // Pre-fill machines and employees
-          machines: (savedFormData?.machines as typeof foundCustomer.machines) || foundCustomer.machines || [],
-          employees: (savedFormData?.employees as typeof foundCustomer.employees) || foundCustomer.employees || [],
+          // Restore other saved form data (exclude machines/employees to prevent duplication)
+          ...Object.fromEntries(
+            Object.entries(savedFormData || {}).filter(([key]) => !['machines', 'employees'].includes(key))
+          ),
+          // Use single source for machines and employees (NOT merged)
+          machines: machinesSource,
+          employees: employeesSource,
         }, savedData?.currentStep, savedHighestStep)
         
         // Mark as started if not already

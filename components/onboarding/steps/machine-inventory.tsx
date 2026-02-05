@@ -117,7 +117,8 @@ export function MachineInventoryStep() {
     if (!machineToClone) return
     
     const machineType = machineToClone.type
-    const baseNumber = machineType === 'washer' ? 1 : 100
+    // Dryers start at 101 (100 is reserved for super admin override only)
+    const baseNumber = machineType === 'washer' ? 1 : 101
     const maxNumber = machineType === 'washer' ? 99 : 199
     
     // Get all used numbers for this type
