@@ -161,80 +161,61 @@ export async function PATCH(
     }
     
     // Handle machines - sync to machines table
-    // Washers: 1-99, Dryers: 101-199
+    // Rules: Washers 1-99, Dryers 101-199. Number 100 is reserved (super admin only).
     if (updates.machines !== undefined) {
-      // Delete existing machines for this customer first (handles both updates and full deletions)
+      // Delete ALL existing machines for this customer first
       await supabase.from('machines').delete().eq('customer_id', id)
       
-      // Only insert if there are machines to add
-      if (updates.machines.length === 0) {
-        // All machines deleted - nothing more to do
-      } else {
-      
-      // Separate machines by type and assign proper numbering
-      const washers = updates.machines.filter((m: { type?: string }) => 
-        (m.type || '').toLowerCase() === 'washer'
-      )
-      const dryers = updates.machines.filter((m: { type?: string }) => 
-        (m.type || '').toLowerCase() === 'dryer'
-      )
-      const others = updates.machines.filter((m: { type?: string }) => {
-        const type = (m.type || '').toLowerCase()
-        return type !== 'washer' && type !== 'dryer'
-      })
-      
-      let washerIndex = 1
-      let dryerIndex = 101
-      let otherIndex = 201
-      
-      for (const machine of washers) {
-        const machineNum = machine.machineNumber || machine.machineId || washerIndex++
-        await supabase.from('machines').insert({
-          customer_id: id,
-          machine_id: String(machineNum),
-          type: 'washer',
-          manufacturer: machine.make || machine.manufacturer || null,
-          model: machine.model || null,
-          serial_number: machine.serialNumber || null,
-          location_in_store: machine.locationInStore || machine.location || null,
-          price: machine.price || null,
-          status: machine.status || 'active',
-          capacity: machine.capacity || null,
-        })
+      // Insert machines if any exist
+      if (updates.machines.length > 0) {
+        // Track used numbers to avoid collisions
+        const usedNumbers = new Set<number>()
+        
+        for (const machine of updates.machines) {
+          const type = (machine.type || '').toLowerCase()
+          
+          // Use the machine's existing number if it has one
+          let machineNum = machine.machineNumber || 0
+          
+          // Validate and enforce numbering rules
+          if (type === 'washer') {
+            // Washers must be 1-99
+            if (machineNum < 1 || machineNum > 99) {
+              // Find next available washer number
+              machineNum = 1
+              while (usedNumbers.has(machineNum) && machineNum <= 99) machineNum++
+            }
+          } else if (type === 'dryer') {
+            // Dryers must be 101-199 (100 is reserved for super admin)
+            if (machineNum < 101 || machineNum > 199) {
+              // Find next available dryer number
+              machineNum = 101
+              while (usedNumbers.has(machineNum) && machineNum <= 199) machineNum++
+            }
+          } else {
+            // Other types: 201+
+            if (machineNum < 201) {
+              machineNum = 201
+              while (usedNumbers.has(machineNum)) machineNum++
+            }
+          }
+          
+          usedNumbers.add(machineNum)
+          
+          await supabase.from('machines').insert({
+            customer_id: id,
+            machine_id: String(machineNum),
+            type: type || 'other',
+            manufacturer: machine.make || machine.manufacturer || null,
+            model: machine.model || null,
+            serial_number: machine.serialNumber || null,
+            location_in_store: machine.locationInStore || machine.location || null,
+            price: machine.price || null,
+            status: machine.status || 'active',
+            capacity: machine.capacity || null,
+          })
+        }
       }
-      
-      for (const machine of dryers) {
-        const machineNum = machine.machineNumber || machine.machineId || dryerIndex++
-        await supabase.from('machines').insert({
-          customer_id: id,
-          machine_id: String(machineNum),
-          type: 'dryer',
-          manufacturer: machine.make || machine.manufacturer || null,
-          model: machine.model || null,
-          serial_number: machine.serialNumber || null,
-          location_in_store: machine.locationInStore || machine.location || null,
-          price: machine.price || null,
-          status: machine.status || 'active',
-          capacity: machine.capacity || null,
-        })
-      }
-      
-      for (const machine of others) {
-        const machineNum = machine.machineNumber || machine.machineId || otherIndex++
-        await supabase.from('machines').insert({
-          customer_id: id,
-          machine_id: String(machineNum),
-          type: machine.type || 'other',
-          manufacturer: machine.make || machine.manufacturer || null,
-          model: machine.model || null,
-          serial_number: machine.serialNumber || null,
-          location_in_store: machine.locationInStore || machine.location || null,
-          price: machine.price || null,
-          status: machine.status || 'active',
-          capacity: machine.capacity || null,
-        })
-      }
-      } // Close the else block for machines.length > 0
     }
     
     // Remove employees and machines from updates (handled separately)

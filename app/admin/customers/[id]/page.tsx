@@ -110,17 +110,18 @@ export default function CustomerDetailPage() {
   const customer = customers.find((c) => c.id === params.id);
   
   // Fetch fresh customer data from database on page load
+  // Uses setCustomerFromDatabase to update local store WITHOUT triggering a sync back to the API
+  const { setCustomerFromDatabase } = useAdminStore()
   useEffect(() => {
     async function refreshCustomerData() {
       if (!params.id) return
       try {
-        // Use API route to fetch fresh customer data (works client-side)
         const response = await fetch(`/api/customers/${params.id}`)
         if (response.ok) {
           const data = await response.json()
           if (data.customer) {
-            // Update the store with fresh data from database
-            updateCustomer(params.id, data.customer)
+            // Update local store only - do NOT sync back to database (would cause loop)
+            setCustomerFromDatabase(params.id as string, data.customer)
           }
         }
       } catch (error) {
@@ -128,7 +129,7 @@ export default function CustomerDetailPage() {
       }
     }
     refreshCustomerData()
-  }, [params.id, updateCustomer])
+  }, [params.id, setCustomerFromDatabase])
   
   // Machine management state
   const [isAddMachineOpen, setIsAddMachineOpen] = useState(false);
