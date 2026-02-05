@@ -1,7 +1,6 @@
 // Main homepage
 import Link from 'next/link'
 import Image from 'next/image'
-import { Header } from '@/components/header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { 
@@ -14,7 +13,8 @@ import {
   Building2,
   WashingMachine,
   Shield,
-  LogIn
+  LogIn,
+  Menu
 } from 'lucide-react'
 
 const features = [
@@ -61,11 +61,46 @@ const steps = [
   { number: '08', title: 'Go Live!', description: 'Training complete and system activated' },
 ]
 
+// Simple header component (inline to avoid client component issues)
+function SimpleHeader() {
+  return (
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container mx-auto flex h-20 items-center justify-between px-4">
+        <Link href="/" className="flex items-center py-2">
+          <Image
+            src="/images/bossboarding-logo.png"
+            alt="BossBoarding - Customer Onboarding Made Easy"
+            width={180}
+            height={70}
+            className="object-contain"
+            priority
+          />
+        </Link>
+        <nav className="hidden md:flex items-center gap-1">
+          <Link href="/" className="px-4 py-2 text-sm font-medium rounded-md bg-lb-blue text-white">Home</Link>
+          <Link href="/onboarding" className="px-4 py-2 text-sm font-medium rounded-md text-muted-foreground hover:text-lb-blue hover:bg-lb-cyan/10">Onboarding</Link>
+          <Link href="/portal/login" className="px-4 py-2 text-sm font-medium rounded-md text-muted-foreground hover:text-lb-blue hover:bg-lb-cyan/10">Customer Login</Link>
+          <Link href="/admin" className="px-4 py-2 text-sm font-medium rounded-md text-muted-foreground hover:text-lb-blue hover:bg-lb-cyan/10">Admin</Link>
+        </nav>
+        <div className="hidden md:flex items-center gap-4">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/onboarding">Start Onboarding</Link>
+          </Button>
+        </div>
+        <Button variant="ghost" size="icon" className="md:hidden">
+          <Menu className="h-5 w-5" />
+          <span className="sr-only">Toggle menu</span>
+        </Button>
+      </div>
+    </header>
+  )
+}
+
 // Homepage component
 export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <Header />
+      <SimpleHeader />
       
       <main className="flex-1">
         {/* Hero Section */}
