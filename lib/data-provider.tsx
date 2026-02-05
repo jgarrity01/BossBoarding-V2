@@ -1,10 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { useAdminStore } from '@/lib/store'
-import type { Customer, Machine, Employee, CustomerNote } from '@/lib/types'
-import * as supabaseCustomers from '@/lib/supabase/customers'
+import type { Customer } from '@/lib/types'
 
 interface DataContextType {
   isSupabaseConnected: boolean
@@ -30,117 +27,156 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [isSupabaseConnected, setIsSupabaseConnected] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [supabaseCustomersList, setSupabaseCustomersList] = useState<Customer[]>([])
+  const [zustandStore, setZustandStore] = useState<{
+    customers: Customer[]
+    addCustomer: (customer: Customer) => void
+    updateCustomer: (id: string, data: Partial<Customer>) => void
+    deleteCustomer: (id: string) => void
+    getCustomerByToken: (token: string) => Customer | undefined
+    addNote: (customerId: string, content: string, createdBy: string) => void
+    updateNote: (customerId: string, noteId: string, content: string) => void
+    deleteNote: (customerId: string, noteId: string) => void
+  } | null>(null)
   
-  // Get Zustand store functions as fallback
-  const zustandStore = useAdminStore()
-  
-  // Check Supabase connection on mount
+  // Dynamically import dependencies to avoid SSR issues
   useEffect(() => {
-    const checkConnection = async () => {
+    const init = async () => {
       try {
-        const supabase = createClient()
+        // Import store
+        const { useAdminStore } = await import('@/lib/store')
+        const store = useAdminStore.getState()
+        setZustandStore({
+          customers: store.customers,
+          addCustomer: store.addCustomer,
+          updateCustomer: store.updateCustomer,
+          deleteCustomer: store.deleteCustomer,
+          getCustomerByToken: store.getCustomerByToken,
+          addNote: (customerId, content, createdBy) => {
+            store.addCustomerNote(customerId, {
+              id: crypto.randomUUID(),
+              content,
+              createdAt: new Date().toISOString(),
+              createdBy,
+              isEdited: false,
+            })
+          },
+          updateNote: (customerId, noteId, content) => {
+            store.updateCustomerNote(customerId, noteId, content, 'System')
+          },
+          deleteNote: store.deleteCustomerNote,
+        })
         
-        // Check if we have an authenticated user (for admin access)
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
-        
-        // "Auth session missing!" is expected for non-logged-in users - not an error
-        const isSessionMissing = authError?.message === 'Auth session missing!'
-        
-        if (authError && !isSessionMissing) {
-          // Only log actual errors, not expected "no session" states
-          console.log('[v0] Auth error, using localStorage fallback:', authError.message)
-          setIsSupabaseConnected(false)
-          setIsLoading(false)
-          return
-        }
-        
-        // Supabase is connected (even if no user is logged in)
-        setIsSupabaseConnected(true)
-        
-        if (user) {
-          // User is authenticated - Supabase is connected and we can access data
+        // Try to connect to Supabase
+        try {
+          const { createClient } = await import('@/lib/supabase/client')
+          const supabase = createClient()
+          
+          const { data: { user }, error: authError } = await supabase.auth.getUser()
+          const isSessionMissing = authError?.message === 'Auth session missing!'
+          
+          if (authError && !isSessionMissing) {
+            setIsSupabaseConnected(false)
+            setIsLoading(false)
+            return
+          }
+          
           setIsSupabaseConnected(true)
-          // Load customers from Supabase with error handling
-          try {
-            const customers = await supabaseCustomers.getCustomers()
-            setSupabaseCustomersList(customers)
-          } catch (fetchErr) {
-            console.log('[v0] Error fetching customers:', fetchErr)
-            // Still mark as connected, but with empty list
+          
+          if (user) {
+            try {
+              const supabaseCustomers = await import('@/lib/supabase/customers')
+              const customers = await supabaseCustomers.getCustomers()
+              setSupabaseCustomersList(customers)
+            } catch {
+              setSupabaseCustomersList([])
+            }
+          } else {
             setSupabaseCustomersList([])
           }
-        } else {
-          // No auth user - Supabase is connected but user needs to log in
-          // For public pages (like onboarding), this is fine
-          setIsSupabaseConnected(true)
-          setSupabaseCustomersList([])
+        } catch {
+          setIsSupabaseConnected(false)
         }
       } catch (err) {
-        console.log('[v0] Supabase connection error, using localStorage fallback:', err)
-        setIsSupabaseConnected(false)
+        console.error('[DataProvider] Init error:', err)
       } finally {
         setIsLoading(false)
       }
     }
     
-    checkConnection()
+    init()
   }, [])
   
   // Refresh data from source
   const refresh = useCallback(async () => {
     if (isSupabaseConnected) {
-      const customers = await supabaseCustomers.getCustomers()
-      setSupabaseCustomersList(customers)
+      try {
+        const supabaseCustomers = await import('@/lib/supabase/customers')
+        const customers = await supabaseCustomers.getCustomers()
+        setSupabaseCustomersList(customers)
+      } catch {
+        // Ignore errors
+      }
     }
   }, [isSupabaseConnected])
   
   // Get customers list
-  const customers = isSupabaseConnected ? supabaseCustomersList : zustandStore.customers
+  const customers = isSupabaseConnected ? supabaseCustomersList : (zustandStore?.customers ?? [])
   
   // Get single customer by ID
   const getCustomer = useCallback((id: string) => {
     if (isSupabaseConnected) {
       return supabaseCustomersList.find(c => c.id === id)
     }
-    return zustandStore.customers.find(c => c.id === id)
-  }, [isSupabaseConnected, supabaseCustomersList, zustandStore.customers])
+    return zustandStore?.customers.find(c => c.id === id)
+  }, [isSupabaseConnected, supabaseCustomersList, zustandStore])
   
   // Get customer by onboarding token
   const getCustomerByToken = useCallback((token: string) => {
     if (isSupabaseConnected) {
       return supabaseCustomersList.find(c => c.onboardingToken === token)
     }
-    return zustandStore.getCustomerByToken(token)
+    return zustandStore?.getCustomerByToken(token)
   }, [isSupabaseConnected, supabaseCustomersList, zustandStore])
   
   // Add customer
   const addCustomer = useCallback(async (customer: Partial<Customer>): Promise<Customer | null> => {
     if (isSupabaseConnected) {
-      const newCustomer = await supabaseCustomers.createCustomer(customer)
-      if (newCustomer) {
-        setSupabaseCustomersList(prev => [newCustomer, ...prev])
+      try {
+        const supabaseCustomers = await import('@/lib/supabase/customers')
+        const newCustomer = await supabaseCustomers.createCustomer(customer)
+        if (newCustomer) {
+          setSupabaseCustomersList(prev => [newCustomer, ...prev])
+        }
+        return newCustomer
+      } catch {
+        return null
       }
-      return newCustomer
     }
-    zustandStore.addCustomer(customer as Customer)
-    return zustandStore.customers[0] // Returns the newly added customer
+    if (zustandStore) {
+      zustandStore.addCustomer(customer as Customer)
+      return zustandStore.customers[0]
+    }
+    return null
   }, [isSupabaseConnected, zustandStore])
   
   // Update customer
   const updateCustomer = useCallback(async (id: string, updates: Partial<Customer>) => {
     if (isSupabaseConnected) {
-      await supabaseCustomers.updateCustomer(id, updates)
-      // Also sync machines and employees if provided
-      if (updates.machines) {
-        await supabaseCustomers.syncMachines(id, updates.machines)
+      try {
+        const supabaseCustomers = await import('@/lib/supabase/customers')
+        await supabaseCustomers.updateCustomer(id, updates)
+        if (updates.machines) {
+          await supabaseCustomers.syncMachines(id, updates.machines)
+        }
+        if (updates.employees) {
+          await supabaseCustomers.syncEmployees(id, updates.employees)
+        }
+        const customers = await supabaseCustomers.getCustomers()
+        setSupabaseCustomersList(customers)
+      } catch {
+        // Ignore errors
       }
-      if (updates.employees) {
-        await supabaseCustomers.syncEmployees(id, updates.employees)
-      }
-      // Refresh the list
-      const customers = await supabaseCustomers.getCustomers()
-      setSupabaseCustomersList(customers)
-    } else {
+    } else if (zustandStore) {
       zustandStore.updateCustomer(id, updates)
     }
   }, [isSupabaseConnected, zustandStore])
@@ -148,9 +184,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // Delete customer
   const deleteCustomer = useCallback(async (id: string) => {
     if (isSupabaseConnected) {
-      await supabaseCustomers.deleteCustomer(id)
-      setSupabaseCustomersList(prev => prev.filter(c => c.id !== id))
-    } else {
+      try {
+        const supabaseCustomers = await import('@/lib/supabase/customers')
+        await supabaseCustomers.deleteCustomer(id)
+        setSupabaseCustomersList(prev => prev.filter(c => c.id !== id))
+      } catch {
+        // Ignore errors
+      }
+    } else if (zustandStore) {
       zustandStore.deleteCustomer(id)
     }
   }, [isSupabaseConnected, zustandStore])
@@ -158,9 +199,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // Add note
   const addNote = useCallback(async (customerId: string, content: string, createdBy: string) => {
     if (isSupabaseConnected) {
-      await supabaseCustomers.addNote(customerId, content, createdBy)
-      await refresh()
-    } else {
+      try {
+        const supabaseCustomers = await import('@/lib/supabase/customers')
+        await supabaseCustomers.addNote(customerId, content, createdBy)
+        await refresh()
+      } catch {
+        // Ignore errors
+      }
+    } else if (zustandStore) {
       zustandStore.addNote(customerId, content, createdBy)
     }
   }, [isSupabaseConnected, zustandStore, refresh])
@@ -168,9 +214,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // Update note
   const updateNote = useCallback(async (customerId: string, noteId: string, content: string) => {
     if (isSupabaseConnected) {
-      await supabaseCustomers.updateNote(noteId, content)
-      await refresh()
-    } else {
+      try {
+        const supabaseCustomers = await import('@/lib/supabase/customers')
+        await supabaseCustomers.updateNote(noteId, content)
+        await refresh()
+      } catch {
+        // Ignore errors
+      }
+    } else if (zustandStore) {
       zustandStore.updateNote(customerId, noteId, content)
     }
   }, [isSupabaseConnected, zustandStore, refresh])
@@ -178,9 +229,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // Delete note
   const deleteNote = useCallback(async (customerId: string, noteId: string) => {
     if (isSupabaseConnected) {
-      await supabaseCustomers.deleteNote(noteId)
-      await refresh()
-    } else {
+      try {
+        const supabaseCustomers = await import('@/lib/supabase/customers')
+        await supabaseCustomers.deleteNote(noteId)
+        await refresh()
+      } catch {
+        // Ignore errors
+      }
+    } else if (zustandStore) {
       zustandStore.deleteNote(customerId, noteId)
     }
   }, [isSupabaseConnected, zustandStore, refresh])
