@@ -722,11 +722,20 @@ export const useAdminStore = create<AdminStore>()(
   
   // Update local store from database - NO sync back to avoid feedback loops
   setCustomerFromDatabase: (id, data) => {
-    set((state) => ({
-      customers: state.customers.map((c) =>
-        c.id === id ? { ...c, ...data } : c
-      )
-    }))
+    set((state) => {
+      const exists = state.customers.some((c) => c.id === id)
+      if (exists) {
+        return {
+          customers: state.customers.map((c) =>
+            c.id === id ? { ...c, ...data } : c
+          )
+        }
+      }
+      // Customer not in local store yet - add it
+      return {
+        customers: [...state.customers, { id, ...data } as Customer]
+      }
+    })
   },
   
   updateCustomer: (id, data) => {
@@ -773,10 +782,13 @@ export const useAdminStore = create<AdminStore>()(
       },
       
       // Machine management for customers
+      // IMPORTANT: Each operation updates local state AND syncs the FULL machine list to the DB.
+      // The sync uses a debounce to prevent rapid successive writes from causing duplication.
+      // Only ONE sync call happens per customer, even if multiple operations fire quickly.
       addCustomerMachine: (customerId, machine) => {
         const customer = get().customers.find(c => c.id === customerId)
         if (!customer) return
-        const updatedMachines = [...customer.machines, machine]
+        const updatedMachines = [...(customer.machines || []), machine]
         set((state) => ({
           customers: state.customers.map((c) =>
             c.id === customerId
@@ -784,13 +796,14 @@ export const useAdminStore = create<AdminStore>()(
               : c
           )
         }))
-        syncCustomerToSupabase(customerId, { machines: updatedMachines })
+        // Debounce machine syncs to prevent rapid-fire duplications
+        syncCustomerToSupabase(customerId, { machines: updatedMachines }, 500)
       },
       
       updateCustomerMachine: (customerId, machineId, data) => {
         const customer = get().customers.find(c => c.id === customerId)
         if (!customer) return
-        const updatedMachines = customer.machines.map((m) =>
+        const updatedMachines = (customer.machines || []).map((m) =>
           m.id === machineId ? { ...m, ...data } : m
         )
         set((state) => ({
@@ -800,13 +813,13 @@ export const useAdminStore = create<AdminStore>()(
               : c
           )
         }))
-        syncCustomerToSupabase(customerId, { machines: updatedMachines })
+        syncCustomerToSupabase(customerId, { machines: updatedMachines }, 500)
       },
       
       deleteCustomerMachine: (customerId, machineId) => {
         const customer = get().customers.find(c => c.id === customerId)
         if (!customer) return
-        const updatedMachines = customer.machines.filter((m) => m.id !== machineId)
+        const updatedMachines = (customer.machines || []).filter((m) => m.id !== machineId)
         set((state) => ({
           customers: state.customers.map((c) =>
             c.id === customerId
@@ -814,7 +827,7 @@ export const useAdminStore = create<AdminStore>()(
               : c
           )
         }))
-        syncCustomerToSupabase(customerId, { machines: updatedMachines })
+        syncCustomerToSupabase(customerId, { machines: updatedMachines }, 500)
       },
       
       reorderCustomerMachines: (customerId, machines) => {

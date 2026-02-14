@@ -127,17 +127,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [isSupabaseConnected, zustandStore])
   
   // Update customer
+  // NOTE: supabaseCustomers.updateCustomer already handles machines and employees internally.
+  // Do NOT also call syncMachines/syncEmployees - that causes double-writes and duplication.
   const updateCustomer = useCallback(async (id: string, updates: Partial<Customer>) => {
     if (isSupabaseConnected) {
       await supabaseCustomers.updateCustomer(id, updates)
-      // Also sync machines and employees if provided
-      if (updates.machines) {
-        await supabaseCustomers.syncMachines(id, updates.machines)
-      }
-      if (updates.employees) {
-        await supabaseCustomers.syncEmployees(id, updates.employees)
-      }
-      // Refresh the list
+      // Refresh the list to get fresh data
       const customers = await supabaseCustomers.getCustomers()
       setSupabaseCustomersList(customers)
     } else {

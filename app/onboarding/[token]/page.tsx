@@ -133,7 +133,11 @@ export default function TokenOnboardingPage() {
       }
       
       // Also update local store for immediate UI updates
-      updateCustomer(customerId, updateData)
+      // IMPORTANT: Strip machines/employees from the store update to prevent double-sync.
+      // The onboarding save API already wrote them to the DB. The store's updateCustomer
+      // would trigger syncCustomerToSupabase which writes them AGAIN, causing duplication.
+      const { machines: _m, employees: _e, ...storeUpdateData } = updateData
+      updateCustomer(customerId, storeUpdateData)
       
       if (showSuccess) {
         setSaveSuccess(true)
@@ -163,10 +167,8 @@ export default function TokenOnboardingPage() {
         return
       }
       
-      // Update local store with fresh data from database
-      if (foundCustomer.id) {
-        updateCustomer(foundCustomer.id, foundCustomer)
-      }
+      // NOTE: Do NOT call updateCustomer() here - that triggers syncCustomerToSupabase
+      // which re-inserts machines and causes duplication. The data is already in the DB.
 
       // Check if already completed
       if (foundCustomer.onboardingCompleted) {
