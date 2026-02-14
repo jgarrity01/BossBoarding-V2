@@ -352,15 +352,20 @@ export const useOnboardingStore = create<OnboardingStore>()(
   }),
   }),
   {
-  name: 'johnboarding-onboarding-v3',
-  partialize: (state) => ({
+  name: 'johnboarding-onboarding-v4',
+  partialize: (state) => {
+  // Strip machines and employees from formData before persisting.
+  // Machine/employee data MUST always come from the database (source of truth).
+  // Persisting them to localStorage causes stale data and duplication.
+  const { machines: _m, employees: _e, ...safeFormData } = state.formData
+  return {
     customerId: state.customerId,
     onboardingToken: state.onboardingToken,
     currentStep: state.currentStep,
     highestStepReached: state.highestStepReached,
-    formData: state.formData,
-    // Explicitly exclude isSubmitting from persistence
-  }),
+    formData: safeFormData,
+  }
+  },
     }
   )
 )
@@ -1040,10 +1045,19 @@ export const useAdminStore = create<AdminStore>()(
   },
   }),
   {
-  name: 'johnboarding-admin-v3',
-    }
+    name: 'johnboarding-admin-v4',
+    partialize: (state) => ({
+      // Only persist UI state - NEVER persist customer/machine data.
+      // Customer data MUST always come from the database (source of truth).
+      // Persisting customers to localStorage causes stale data, duplication,
+      // and conflicts when data is modified from another session/device.
+      selectedCustomerId: state.selectedCustomerId,
+      statusFilter: state.statusFilter,
+      searchQuery: state.searchQuery,
+    }),
+  }
   )
-)
+  )
 
 // User Management Store
 interface UserStore {
